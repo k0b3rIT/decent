@@ -1,12 +1,12 @@
 package com.k0b3rit.marketdataprovider.exchange.impl;
 
 import com.alibaba.fastjson.JSON;
-import com.k0b3rit.marketdataprovider.MarketDataProvider;
-import com.k0b3rit.marketdataprovider.exchange.ExchageClient;
-import com.k0b3rit.domain.model.Exchange;
 import com.k0b3rit.domain.model.CustomPropertKey;
+import com.k0b3rit.domain.model.Exchange;
 import com.k0b3rit.domain.model.MarketDataIdentifier;
 import com.k0b3rit.domain.model.MarketDataType;
+import com.k0b3rit.marketdataprovider.MarketDataProvider;
+import com.k0b3rit.marketdataprovider.exchange.ExchageClient;
 import com.k0b3rit.websocketclient.DecentClient;
 import com.k0b3rit.websocketclient.exception.WsClientException;
 import com.k0b3rit.websocketclient.model.WSClientMessage;
@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static com.k0b3rit.domain.utils.log.LogColoringUtil.*;
+
 @Component
 public class BybitExchange implements ExchageClient {
 
@@ -35,6 +37,8 @@ public class BybitExchange implements ExchageClient {
     private DecentClient webSocketClient;
 
     private AtomicLong reqId = new AtomicLong(0);
+
+    private AtomicLong startSeqCounter = new AtomicLong(0);
 
     private Map<String, Consumer<WSClientMessage>> controlMessageConsumers = new ConcurrentHashMap<>();
 
@@ -52,22 +56,6 @@ public class BybitExchange implements ExchageClient {
         super();
         this.marketDataProvider = marketDataProvider;
         this.initWSClient();
-        try {
-            this.webSocketClient.connectBlocking();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void initWSClient() {
-        try {
-            DecentClient webSocketClient = new DecentClient(new URI(SERVER_URI), this::messageProcessor, this::controlMessageProcessor, this::onClientClose, this::onClientOpen);
-            webSocketClient.setConnectionLostTimeout(5);
-            webSocketClient.setTcpNoDelay(true);
-            this.webSocketClient = webSocketClient;
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
@@ -84,7 +72,8 @@ public class BybitExchange implements ExchageClient {
     }
 
     @Override
-    public void subscribe(MarketDataIdentifier marketDataIdentifier) {
+    public synchronized void subscribe(MarketDataIdentifier marketDataIdentifier) {
+        this.ensureConnection();
         LOGGER.info("Subscribe [%s]".formatted(marketDataIdentifier));
         String topic;
         if (marketDataIdentifier.getMarketDataType() == MarketDataType.ORDER_BOOK) {
@@ -97,7 +86,7 @@ public class BybitExchange implements ExchageClient {
     }
 
     @Override
-    public void unsubscribe(MarketDataIdentifier marketDataIdentifier) throws WsClientException {
+    public synchronized void unsubscribe(MarketDataIdentifier marketDataIdentifier) throws WsClientException {
         String topic;
         if (marketDataIdentifier.getMarketDataType() == MarketDataType.ORDER_BOOK) {
             topic = "orderbook.%s.%s".formatted(marketDataIdentifier.getPropertyByKey(CustomPropertKey.LEVEL), marketDataIdentifier.getPropertyByKey(CustomPropertKey.SYMBOL).toUpperCase());
@@ -108,21 +97,47 @@ public class BybitExchange implements ExchageClient {
         this.sendAndWaitForResponse(new BybitModel.OpMessage(reqId, BybitModel.OpMessageType.unsubscribe.name(), new String[]{topic}), reqId);
     }
 
+    private void initWSClient() {
+        try {
+            DecentClient webSocketClient = new DecentClient(new URI(SERVER_URI), this::messageProcessor, this::controlMessageProcessor, this::onClientClose, this::onClientOpen);
+            webSocketClient.setConnectionLostTimeout(5);
+            webSocketClient.setTcpNoDelay(true);
+            this.webSocketClient = webSocketClient;
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void ensureConnection() {
+        if (startSeqCounter.get() == 0 && !this.webSocketClient.isOpen()) {
+            try {
+                this.webSocketClient.connectBlocking();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     private void onClientClose(int code, String reason, boolean remote) {
-        LOGGER.info("Connection closed with code [%d] and reason [%s]".formatted(code, reason));
-        executorService.schedule(()->{
-                initWSClient();
-                try {
-                    this.webSocketClient.connectBlocking();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+        LOGGER.warn(inRed("Connection closed with code [%d] and reason [%s]".formatted(code, reason)));
+        executorService.schedule(() -> {
+            initWSClient();
+            try {
+                this.webSocketClient.connectBlocking();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }, 2, TimeUnit.SECONDS);
 
     }
 
     private void onClientOpen() {
-        this.marketDataProvider.onExchangeAdapterRestart(Exchange.BYBIT);
+        if (startSeqCounter.getAndIncrement() != 0) { //The first connection open is not a restart
+            LOGGER.info(inYellow("Exchange adapter [%s] restarted".formatted(Exchange.BYBIT)));
+            this.marketDataProvider.onExchangeAdapterRestart(Exchange.BYBIT);
+        } else {
+            LOGGER.info(inGreen("Exchange adapter [%s] started".formatted(Exchange.BYBIT)));
+        }
     }
 
     private void sendAndWaitForResponse(BybitModel.WsMessage message, String reqId) throws WsClientException {

@@ -67,7 +67,9 @@ The application will produce the result into the stdout in the requested format.
 
 ### Metrics
 The application will also expose the following metrics:
-- orderbook_updates_total: The total number of orderbook updates received.
+- market_data_process_time: histogram of the time it takes to process the market data (updates from the server) by market data observer
+- market_data: counter of the processed market data by stream
+- observer_executor_task_count: gauge of the number of tasks in the observer executor 
 
 In addition to the above metrics, the application will also expose various JVM metrics.\
 The raw metrics are available on the following endpoint:\
@@ -87,7 +89,32 @@ http://localhost:9090
 Act as a timeseries database to store the metrics.
 
 
-Notes
+Notes on robustness testing
 ---------
 I have tested the network robustness by turning off the network interface for a couple of seconds and the application was able to reconnect and continue to work as expected.\
 I have tested the application against inconsistent orderbook updates by raising the same exception manually as the invalid orderbook update would raise. The application was able to recover and continue to work as expected.\
+You can uncomment the following lines to see the inconsistent orderbook update handling in action:\ (the client restart will appear on the grafana dashboard too)
+https://github.com/k0b3rIT/decent/blob/50de3e0653b5b98187255d89f8c9b6d9a59d8366/service/src/main/java/com/k0b3rit/service/orderbookmaintainer/LocalOrderbookMaintainer.java#L67
+
+
+Notes on the implementation
+---------
+The implementation is more generic than it should be for this task.\
+It designed to be able to extend to support multiple exchanges, different kind of market data streams, and multiple data observers.
+
+### Main components
+
+#### MarketDataObserver
+An entity that consumes the incoming market data.\
+
+#### MarketDataProvider
+The MarketDataProvider has three main responsibilities.
+- Maintaining the list of the observed streams (MarketDataIdentifier) and the associated observers. (Who needs what) (There can be multiple observers for the same stream)
+- Providing a dedicated executor for each MarketDataObserver to act as worker thread.\
+- Distribute the incoming market data to the associated observers.\
+By having a dedicated worker thread we can offload the processing of the incoming market data to a separate thread and avoid blocking the websocket client thread and incoming market data. We can also ensure that the individual observers are not affecting each other.\
+The executor's task pool act as a buffer for the incoming market data.\ (I expose a metric to monitor the number of tasks in the executor pool, if it is constantly high, it means that the observer is not able to keep up with the incoming market data and we should consider to optimize the observer logic)
+
+#### LocalOrderbookMaintainer
+This is the main component that handles the orderbook updates at the end of the pipeline.\
+By abstracting away the websocket client and networking the core logic remains clean and easy to maintain.\

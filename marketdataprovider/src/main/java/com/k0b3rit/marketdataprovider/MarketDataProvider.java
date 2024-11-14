@@ -1,12 +1,12 @@
 package com.k0b3rit.marketdataprovider;
 
 import com.google.common.base.Stopwatch;
+import com.k0b3rit.domain.model.Exchange;
+import com.k0b3rit.domain.model.MarketDataIdentifier;
 import com.k0b3rit.domain.utils.ThreadFactories;
 import com.k0b3rit.domain.utils.log.LogColoringUtil;
 import com.k0b3rit.marketdataprovider.exchange.ExchageClient;
-import com.k0b3rit.domain.model.Exchange;
 import com.k0b3rit.marketdataprovider.exchange.ExchangeClientProvider;
-import com.k0b3rit.domain.model.MarketDataIdentifier;
 import com.k0b3rit.marketdataprovider.model.MarketDataObserver;
 import com.k0b3rit.websocketclient.exception.WsClientException;
 import com.k0b3rit.websocketclient.model.WSClientMessage;
@@ -94,7 +94,6 @@ public class MarketDataProvider {
                 }
             });
         });
-
     }
 
     private void initAndAddNewObserver(MarketDataIdentifier subscribeDefinition, MarketDataObserver observer) {
@@ -126,7 +125,7 @@ public class MarketDataProvider {
 
         ThreadPoolExecutor tpe = (ThreadPoolExecutor) executorService;
 
-        executorTaskGaugeMap.computeIfAbsent(marketDataObserver.toString(), k -> Gauge.builder("observer_executor_task_count", tpe, (ex)->ex.getQueue().size())
+        executorTaskGaugeMap.computeIfAbsent(marketDataObserver.toString(), k -> Gauge.builder("observer_executor_task_count", tpe, (ex) -> ex.getQueue().size())
                 .tag("observer", marketDataObserver.toString())
                 .register(meterRegistry));
         if (tpe.getQueue().size() > 1000) {
@@ -138,11 +137,11 @@ public class MarketDataProvider {
         increment(marketDataIdentifier);
         for (MarketDataObserver marketDataObserver : subscribers.get(marketDataIdentifier)) {
 
-            ExecutorService  executorService = observerExecutor.get(marketDataObserver);
+            ExecutorService executorService = observerExecutor.get(marketDataObserver);
 
             measureQueueStatus(executorService, marketDataObserver);
 
-            executorService.execute(()-> {
+            executorService.execute(() -> {
                 try {
 
                     Stopwatch stopwatch = Stopwatch.createStarted();

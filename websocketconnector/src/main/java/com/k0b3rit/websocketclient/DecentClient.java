@@ -29,7 +29,6 @@ public class DecentClient extends WebSocketClient {
 
     @Override
     public void onOpen(ServerHandshake handshakedata) {
-       LOGGER.info("Connection opened!");
        this.onOpen.run();
     }
 
