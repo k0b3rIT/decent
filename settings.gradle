@@ -1,0 +1,8 @@
+rootProject.name = 'decent-dev'
+
+include("websocketconnector")
+include("application")
+include("marketdataprovider")
+include("service")
+include("domain")
+include("api")

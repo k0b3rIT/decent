@@ -1,0 +1,17 @@
+apply plugin: 'application'
+
+mainClassName = "com.k0b3rit.application.Application"
+
+
+startScripts {
+    applicationName = 'decent-dev'
+}
+
+
+dependencies{
+    implementation project(':service')
+    implementation project(':marketdataprovider')
+    implementation project(':domain')
+    implementation project(':websocketconnector')
+    implementation project(':api')
+}

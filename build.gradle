@@ -1,0 +1,59 @@
+buildscript {
+	ext {
+		springBootVersion = '3.3.5'
+	}
+	repositories {
+		mavenCentral()
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+	}
+}
+
+allprojects {
+	apply plugin: 'java'
+	apply plugin: "io.spring.dependency-management"
+	apply plugin: 'org.springframework.boot'
+
+	java {
+		toolchain {
+			languageVersion = JavaLanguageVersion.of(17)
+		}
+	}
+
+	bootJar {
+		enabled = false
+	}
+
+	jar {
+		enabled = true
+	}
+
+	repositories {
+		mavenLocal()
+		mavenCentral()
+		jcenter()
+	}
+
+	dependencies {
+		implementation 'org.springframework.boot:spring-boot-starter-web'
+		implementation 'org.springframework.boot:spring-boot-starter-actuator'
+		implementation 'org.springframework.boot:spring-boot-starter-aop'
+		testImplementation 'org.springframework.boot:spring-boot-starter-test'
+		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+		implementation 'io.micrometer:micrometer-core'
+		implementation 'io.micrometer:micrometer-registry-prometheus'
+		implementation group: 'com.google.guava', name: 'guava', version: '33.3.1-jre'
+		implementation 'org.java-websocket:Java-WebSocket:1.5.7'
+		implementation 'org.json:json:20240303'
+		implementation 'com.alibaba:fastjson:1.2.13'
+		implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+
+
+	}
+
+	tasks.named('test') {
+		useJUnitPlatform()
+	}
+
+}

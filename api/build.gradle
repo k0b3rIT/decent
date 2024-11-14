@@ -1,0 +1,9 @@
+dependencies {
+    implementation project(path: ':domain')
+    implementation project(path: ':service')
+    implementation project(path: ':service')
+}
+
+compileJava {
+    options.compilerArgs << '-parameters'
+}

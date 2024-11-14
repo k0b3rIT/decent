@@ -1,0 +1,5 @@
+dependencies {
+    implementation project(path: ':marketdataprovider')
+    implementation project(path: ':domain')
+    implementation project(path: ':websocketconnector')
+}

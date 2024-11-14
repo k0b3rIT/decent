@@ -1,0 +1,4 @@
+dependencies {
+    implementation project(path: ':websocketconnector')
+    implementation project(path: ':domain')
+}
